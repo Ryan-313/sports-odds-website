@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
 
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0"
-  >
+  />
 
   <title>Sports Odds</title>
 
@@ -18,7 +17,11 @@
 
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
+      font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
       background: #f4f5f7;
       color: #111;
     }
@@ -26,42 +29,53 @@
     header {
       background: #111;
       color: white;
-      padding: 24px 20px;
+
+      padding: 28px 20px;
+
       text-align: center;
     }
 
     header h1 {
       margin: 0;
-      font-size: 32px;
-    }
-
-    header p {
-      margin: 8px 0 0;
-      color: #bbb;
+      font-size: 34px;
     }
 
     .sports {
       display: flex;
       flex-wrap: wrap;
+
       gap: 10px;
-      padding: 20px;
+
       justify-content: center;
-      background: white;
-      border-bottom: 1px solid #ddd;
+
+      padding: 25px 20px;
     }
 
     .sport {
-      padding: 12px 18px;
       border: 0;
-      border-radius: 8px;
-      background: #f0f0f0;
+
+      border-radius: 10px;
+
+      background: white;
+
+      padding: 13px 18px;
+
       cursor: pointer;
+
       font-size: 15px;
-      transition: 0.15s;
+
+      transition:
+        transform 0.15s,
+        background 0.15s,
+        box-shadow 0.15s;
     }
 
     .sport:hover {
-      background: #ddd;
+      transform: translateY(-1px);
+
+      box-shadow:
+        0 4px 12px
+        rgba(0, 0, 0, 0.08);
     }
 
     .sport.active {
@@ -69,102 +83,279 @@
       color: white;
     }
 
-    #status {
-      max-width: 1100px;
-      margin: 20px auto 0;
-      padding: 0 20px;
-      color: #666;
-    }
-
     #matches {
-      padding: 20px;
-      max-width: 1100px;
-      margin: auto;
-    }
+      width: min(1200px, calc(100% - 30px));
 
-    .match {
-      background: white;
-      padding: 20px;
-      margin-bottom: 15px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
+      margin: 0 auto;
 
-    .teams {
-      font-size: 19px;
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-
-    .tournament {
-      color: #666;
-      margin-bottom: 14px;
-    }
-
-    .time {
-      font-size: 13px;
-      color: #888;
-      margin-bottom: 15px;
-    }
-
-    .odds {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-
-    .odd {
-      background: #f0f0f0;
-      padding: 12px;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .odd strong {
-      font-size: 16px;
-    }
-
-    .odd.unavailable {
-      color: #777;
-      display: block;
-      text-align: center;
-    }
-
-    .bookmaker {
-      margin-top: 12px;
-      font-size: 12px;
-      color: #888;
+      padding-bottom: 40px;
     }
 
     .loading {
+      background: white;
+
+      border-radius: 12px;
+
+      padding: 35px;
+
       text-align: center;
-      padding: 50px 20px;
-      color: #666;
+
+      box-shadow:
+        0 3px 12px
+        rgba(0, 0, 0, 0.07);
     }
 
     .error {
       background: #fff0f0;
-      color: #a00000;
-      padding: 18px;
-      border-radius: 10px;
+
+      color: #b00000;
+
+      border-radius: 12px;
+
+      padding: 25px;
+
       margin-bottom: 20px;
     }
 
+    .error h2 {
+      margin-top: 0;
+    }
+
+    .error pre {
+      white-space: pre-wrap;
+
+      word-break: break-word;
+
+      font-family: monospace;
+
+      background: rgba(0, 0, 0, 0.04);
+
+      padding: 12px;
+
+      border-radius: 8px;
+    }
+
+    .tournament-header {
+      background: white;
+
+      border-radius: 12px;
+
+      padding: 20px;
+
+      margin-bottom: 18px;
+
+      box-shadow:
+        0 3px 12px
+        rgba(0, 0, 0, 0.07);
+    }
+
+    .tournament-header h2 {
+      margin: 0 0 8px;
+    }
+
+    .tournament-info {
+      color: #666;
+
+      display: flex;
+
+      flex-wrap: wrap;
+
+      gap: 15px;
+
+      font-size: 14px;
+    }
+
+    .match {
+      background: white;
+
+      border-radius: 12px;
+
+      padding: 22px;
+
+      margin-bottom: 16px;
+
+      box-shadow:
+        0 3px 12px
+        rgba(0, 0, 0, 0.07);
+    }
+
+    .match-top {
+      display: flex;
+
+      justify-content: space-between;
+
+      gap: 15px;
+
+      margin-bottom: 12px;
+    }
+
+    .teams {
+      font-size: 20px;
+
+      font-weight: bold;
+    }
+
+    .status {
+      white-space: nowrap;
+
+      background: #eee;
+
+      border-radius: 20px;
+
+      padding: 7px 11px;
+
+      font-size: 13px;
+    }
+
+    .match-time {
+      color: #666;
+
+      margin-bottom: 18px;
+
+      font-size: 14px;
+    }
+
+    .bookmaker {
+      display: flex;
+
+      justify-content: space-between;
+
+      align-items: center;
+
+      gap: 10px;
+
+      margin-bottom: 15px;
+
+      padding-bottom: 12px;
+
+      border-bottom: 1px solid #eee;
+    }
+
+    .bookmaker-name {
+      font-weight: bold;
+    }
+
+    .suspended {
+      color: #a00000;
+
+      font-size: 13px;
+    }
+
+    .markets {
+      display: grid;
+
+      gap: 15px;
+    }
+
+    .market {
+      border: 1px solid #e5e5e5;
+
+      border-radius: 10px;
+
+      overflow: hidden;
+    }
+
+    .market-title {
+      background: #f7f7f7;
+
+      padding: 11px 13px;
+
+      font-weight: bold;
+
+      font-size: 14px;
+    }
+
+    .outcomes {
+      display: flex;
+
+      flex-wrap: wrap;
+
+      gap: 8px;
+
+      padding: 12px;
+    }
+
+    .outcome {
+      display: flex;
+
+      justify-content: space-between;
+
+      align-items: center;
+
+      gap: 15px;
+
+      min-width: 140px;
+
+      background: #f0f0f0;
+
+      border-radius: 8px;
+
+      padding: 10px 12px;
+    }
+
+    .outcome-name {
+      font-size: 14px;
+    }
+
+    .price {
+      font-weight: bold;
+
+      font-size: 15px;
+    }
+
+    .no-odds {
+      color: #777;
+
+      background: #f7f7f7;
+
+      padding: 15px;
+
+      border-radius: 8px;
+    }
+
     .empty {
+      background: white;
+
+      border-radius: 12px;
+
+      padding: 35px;
+
       text-align: center;
-      padding: 50px 20px;
+
       color: #666;
     }
 
-    @media (max-width: 700px) {
-      .odds {
-        grid-template-columns: 1fr;
+    .refresh {
+      display: block;
+
+      margin: 0 auto 20px;
+
+      border: 0;
+
+      border-radius: 8px;
+
+      padding: 10px 16px;
+
+      background: white;
+
+      cursor: pointer;
+
+      box-shadow:
+        0 2px 8px
+        rgba(0, 0, 0, 0.08);
+    }
+
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 27px;
       }
 
-      header h1 {
-        font-size: 26px;
+      .match-top {
+        flex-direction: column;
+      }
+
+      .outcome {
+        width: 100%;
       }
     }
   </style>
@@ -174,116 +365,68 @@
 
   <header>
     <h1>Sports Odds</h1>
-    <p>Live bookmaker odds powered by OddsPAPI</p>
   </header>
 
-  <div class="sports">
-
-    <button
-      class="sport active"
-      data-sport="10"
-      onclick="selectSport(10, this)"
-    >
-      ⚽ Soccer
+  <div
+    id="sports"
+    class="sports"
+  >
+    <button class="sport active">
+      Loading sports...
     </button>
-
-    <button
-      class="sport"
-      data-sport="11"
-      onclick="selectSport(11, this)"
-    >
-      🏀 Basketball
-    </button>
-
-    <button
-      class="sport"
-      data-sport="12"
-      onclick="selectSport(12, this)"
-    >
-      🏈 American Football
-    </button>
-
-    <button
-      class="sport"
-      data-sport="13"
-      onclick="selectSport(13, this)"
-    >
-      ⚾ Baseball
-    </button>
-
-    <button
-      class="sport"
-      data-sport="2"
-      onclick="selectSport(2, this)"
-    >
-      🎾 Tennis
-    </button>
-
   </div>
 
-  <div id="status">
-    Loading...
-  </div>
-
-  <div id="matches">
-
+  <main id="matches">
     <div class="loading">
-      Loading matches...
+      Loading...
     </div>
-
-  </div>
+  </main>
 
   <script>
+    const sportsContainer =
+      document.getElementById("sports");
 
-    let currentSport = 10;
+    const matchesContainer =
+      document.getElementById("matches");
 
-    /*
-     * ---------------------------------------------------------
-     * Select sport
-     * ---------------------------------------------------------
-     */
-    function selectSport(sportId, button) {
+    let sports = [];
 
-      currentSport = sportId;
-
-      document
-        .querySelectorAll(".sport")
-        .forEach(btn => {
-          btn.classList.remove("active");
-        });
-
-      button.classList.add("active");
-
-      loadMatches(sportId);
-    }
+    let currentSportId = null;
 
     /*
-     * ---------------------------------------------------------
-     * Format date/time
-     * ---------------------------------------------------------
+     * Convert API errors into readable text.
+     *
+     * This fixes the previous:
+     *
+     * [object Object]
+     *
+     * problem.
      */
-    function formatTime(value) {
-
-      if (!value) {
-        return "Time unavailable";
+    function getErrorMessage(data) {
+      if (!data) {
+        return "Unknown API error";
       }
 
-      const date = new Date(value);
-
-      if (Number.isNaN(date.getTime())) {
-        return value;
+      if (typeof data === "string") {
+        return data;
       }
 
-      return date.toLocaleString();
+      if (data.error) {
+        return String(data.error);
+      }
+
+      if (data.message) {
+        return String(data.message);
+      }
+
+      return JSON.stringify(
+        data,
+        null,
+        2
+      );
     }
 
-    /*
-     * ---------------------------------------------------------
-     * Escape HTML
-     * ---------------------------------------------------------
-     */
-    function escapeHTML(value) {
-
+    function escapeHtml(value) {
       return String(value ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -292,252 +435,489 @@
         .replace(/'/g, "&#039;");
     }
 
-    /*
-     * ---------------------------------------------------------
-     * Load matches
-     * ---------------------------------------------------------
-     */
-    async function loadMatches(sportId = currentSport) {
+    function formatDate(value) {
+      if (!value) {
+        return "Time unavailable";
+      }
 
-      const container =
-        document.getElementById("matches");
+      const date = new Date(value);
 
-      const status =
-        document.getElementById("status");
+      if (Number.isNaN(date.getTime())) {
+        return "Time unavailable";
+      }
 
-      container.innerHTML = `
-        <div class="loading">
-          Loading matches...
-        </div>
-      `;
+      return date.toLocaleString(
+        undefined,
+        {
+          dateStyle: "medium",
+          timeStyle: "short"
+        }
+      );
+    }
 
-      status.textContent =
-        "Loading OddsPAPI data...";
+    function renderSports() {
+      sportsContainer.innerHTML = "";
 
+      sports.forEach(sport => {
+        const button =
+          document.createElement("button");
+
+        button.className = "sport";
+
+        button.dataset.sportId =
+          sport.sportId;
+
+        button.textContent =
+          sport.sportName;
+
+        button.addEventListener(
+          "click",
+          () => {
+            selectSport(
+              sport.sportId
+            );
+          }
+        );
+
+        sportsContainer.appendChild(
+          button
+        );
+      });
+    }
+
+    function setActiveSport() {
+      document
+        .querySelectorAll(".sport")
+        .forEach(button => {
+          button.classList.toggle(
+            "active",
+            String(
+              button.dataset.sportId
+            ) ===
+              String(currentSportId)
+          );
+        });
+    }
+
+    async function loadSports() {
       try {
-
         const response =
           await fetch(
-            `/api/odds?sportId=${encodeURIComponent(sportId)}&bookmakers=stake`
+            "/api/sports"
           );
 
         const data =
           await response.json();
 
-        console.log(
-          "Normalized OddsPAPI response:",
-          data
-        );
-
         if (!response.ok) {
-
           throw new Error(
-  typeof data.error === "string"
-    ? data.error
-    : JSON.stringify(data.error || data)
-);
+            getErrorMessage(data)
+          );
         }
 
-        const fixtures =
-          Array.isArray(data.fixtures)
-            ? data.fixtures
-            : [];
+        sports = data;
 
-        status.textContent =
-          `${fixtures.length} matches found`;
+        renderSports();
 
-        if (!fixtures.length) {
-
-          container.innerHTML = `
-            <div class="empty">
-              No matches found for this sport.
-            </div>
-          `;
-
-          return;
+        if (sports.length === 0) {
+          throw new Error(
+            "No sports were returned by OddsPAPI."
+          );
         }
 
-        container.innerHTML =
-          fixtures
-            .map(renderFixture)
-            .join("");
+        /*
+         * Start with Soccer if available.
+         */
+        const soccer =
+          sports.find(
+            sport =>
+              sport.slug === "soccer"
+          );
 
+        currentSportId =
+          soccer?.sportId ||
+          sports[0].sportId;
+
+        setActiveSport();
+
+        await loadOdds(
+          currentSportId
+        );
       } catch (error) {
-
-        console.error(error);
-
-        status.textContent = "";
-
-        container.innerHTML = `
-          <div class="error">
-
-            <strong>
-              Unable to load odds
-            </strong>
-
-            <div style="margin-top:8px">
-              ${escapeHTML(error.message)}
-            </div>
-
-          </div>
-        `;
+        showError(
+          "Unable to load sports",
+          error.message
+        );
       }
     }
 
-    /*
-     * ---------------------------------------------------------
-     * Render one fixture
-     * ---------------------------------------------------------
-     */
-    function renderFixture(fixture) {
+    async function selectSport(
+      sportId
+    ) {
+      currentSportId = sportId;
 
-      const team1 =
-        escapeHTML(
-          fixture.participant1Name ||
-          `Team ${fixture.participant1Id}`
+      setActiveSport();
+
+      await loadOdds(
+        sportId
+      );
+    }
+
+    async function loadOdds(
+      sportId
+    ) {
+      matchesContainer.innerHTML = `
+        <div class="loading">
+          Loading odds...
+        </div>
+      `;
+
+      try {
+        const response =
+          await fetch(
+            `/api/odds?sportId=${encodeURIComponent(
+              sportId
+            )}`
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            getErrorMessage(data)
+          );
+        }
+
+        renderOdds(data);
+      } catch (error) {
+        showError(
+          "Unable to load odds",
+          error.message
         );
+      }
+    }
 
-      const team2 =
-        escapeHTML(
-          fixture.participant2Name ||
-          `Team ${fixture.participant2Id}`
-        );
+    function showError(
+      title,
+      message
+    ) {
+      matchesContainer.innerHTML = `
+        <div class="error">
+          <h2>
+            ${escapeHtml(title)}
+          </h2>
 
-      const tournament =
-        escapeHTML(
-          fixture.tournamentName ||
-          `Tournament ${fixture.tournamentId}`
-        );
+          <pre>${escapeHtml(
+            message
+          )}</pre>
 
-      const home =
-        fixture.odds?.home;
+          <button
+            class="refresh"
+            onclick="loadOdds(currentSportId)"
+          >
+            Try Again
+          </button>
+        </div>
+      `;
+    }
 
-      const draw =
-        fixture.odds?.draw;
-
-      const away =
-        fixture.odds?.away;
-
-      let oddsHTML = "";
-
-      /*
-       * If we have 1X2 odds, display them.
-       */
+    function renderOdds(
+      data
+    ) {
       if (
-        home?.price != null ||
-        draw?.price != null ||
-        away?.price != null
+        !data ||
+        !Array.isArray(
+          data.fixtures
+        )
       ) {
+        showError(
+          "Invalid API response",
+          JSON.stringify(
+            data,
+            null,
+            2
+          )
+        );
 
-        oddsHTML = `
-          <div class="odds">
+        return;
+      }
 
-            <div class="odd">
-              <span>${team1}</span>
+      if (
+        data.fixtures.length === 0
+      ) {
+        matchesContainer.innerHTML = `
+          <div class="empty">
+            <h2>
+              No Stake odds available
+            </h2>
 
-              <strong>
-                ${
-                  home?.price != null
-                    ? Number(home.price).toFixed(2)
-                    : "-"
-                }
-              </strong>
-            </div>
+            <p>
+              No fixtures with available
+              Stake odds were found in
+              this tournament.
+            </p>
 
-            <div class="odd">
-              <span>Draw</span>
-
-              <strong>
-                ${
-                  draw?.price != null
-                    ? Number(draw.price).toFixed(2)
-                    : "-"
-                }
-              </strong>
-            </div>
-
-            <div class="odd">
-              <span>${team2}</span>
-
-              <strong>
-                ${
-                  away?.price != null
-                    ? Number(away.price).toFixed(2)
-                    : "-"
-                }
-              </strong>
-            </div>
-
+            ${
+              data.tournament
+                ? `
+                  <p>
+                    Tournament:
+                    <strong>
+                      ${escapeHtml(
+                        data.tournament.name
+                      )}
+                    </strong>
+                  </p>
+                `
+                : ""
+            }
           </div>
         `;
 
-      } else {
+        return;
+      }
 
-        /*
-         * Some sports do not use soccer's 1X2 market.
-         * Don't falsely say the API is broken.
-         */
-        const marketCount =
-          Array.isArray(fixture.marketSummary)
-            ? fixture.marketSummary.length
-            : 0;
+      const tournament =
+        data.tournament;
 
-        oddsHTML = `
-          <div class="odds">
+      let html = "";
 
-            <div class="odd unavailable">
+      if (tournament) {
+        html += `
+          <div class="tournament-header">
+            <h2>
+              ${escapeHtml(
+                tournament.name
+              )}
+            </h2>
+
+            <div class="tournament-info">
 
               ${
-                fixture.suspended
-                  ? "Bookmaker suspended"
-                  : marketCount > 0
-                    ? `${marketCount} markets available`
-                    : "Odds unavailable"
+                tournament.category
+                  ? `
+                    <span>
+                      ${escapeHtml(
+                        tournament.category
+                      )}
+                    </span>
+                  `
+                  : ""
+              }
+
+              <span>
+                ${data.count}
+                fixture${
+                  data.count === 1
+                    ? ""
+                    : "s"
+                }
+              </span>
+
+              ${
+                tournament.liveFixtures
+                  ? `
+                    <span>
+                      Live:
+                      ${tournament.liveFixtures}
+                    </span>
+                  `
+                  : ""
+              }
+
+              ${
+                tournament.upcomingFixtures
+                  ? `
+                    <span>
+                      Upcoming:
+                      ${tournament.upcomingFixtures}
+                    </span>
+                  `
+                  : ""
               }
 
             </div>
+          </div>
+        `;
+      }
 
+      html += `
+        <button
+          class="refresh"
+          id="refreshButton"
+        >
+          Refresh Odds
+        </button>
+      `;
+
+      data.fixtures.forEach(
+        fixture => {
+          html += renderFixture(
+            fixture
+          );
+        }
+      );
+
+      matchesContainer.innerHTML =
+        html;
+
+      const refreshButton =
+        document.getElementById(
+          "refreshButton"
+        );
+
+      if (refreshButton) {
+        refreshButton.addEventListener(
+          "click",
+          () => {
+            loadOdds(
+              currentSportId
+            );
+          }
+        );
+      }
+    }
+
+    function renderFixture(
+      fixture
+    ) {
+      const bookmaker =
+        fixture.bookmaker || {};
+
+      let marketsHtml = "";
+
+      if (
+        Array.isArray(
+          fixture.markets
+        ) &&
+        fixture.markets.length > 0
+      ) {
+        marketsHtml =
+          `<div class="markets">`;
+
+        fixture.markets.forEach(
+          market => {
+            marketsHtml += `
+              <div class="market">
+
+                <div class="market-title">
+                  ${escapeHtml(
+                    market.marketName
+                  )}
+                </div>
+
+                <div class="outcomes">
+            `;
+
+            market.outcomes.forEach(
+              outcome => {
+                marketsHtml += `
+                  <div class="outcome">
+
+                    <span class="outcome-name">
+                      ${escapeHtml(
+                        outcome.name
+                      )}
+                    </span>
+
+                    <span class="price">
+                      ${Number(
+                        outcome.price
+                      ).toFixed(2)}
+                    </span>
+
+                  </div>
+                `;
+              }
+            );
+
+            marketsHtml += `
+                </div>
+              </div>
+            `;
+          }
+        );
+
+        marketsHtml +=
+          `</div>`;
+      } else {
+        marketsHtml = `
+          <div class="no-odds">
+            Stake currently has no active
+            markets for this fixture.
           </div>
         `;
       }
 
       return `
-        <div class="match">
+        <article class="match">
 
-          <div class="teams">
-            ${team1} vs ${team2}
+          <div class="match-top">
+
+            <div class="teams">
+              ${escapeHtml(
+                fixture.home
+              )}
+              vs
+              ${escapeHtml(
+                fixture.away
+              )}
+            </div>
+
+            <div class="status">
+              ${escapeHtml(
+                fixture.statusName
+              )}
+            </div>
+
           </div>
 
-          <div class="tournament">
-            ${tournament}
+          <div class="match-time">
+            ${formatDate(
+              fixture.startTime
+            )}
           </div>
-
-          <div class="time">
-            ${formatTime(fixture.startTime)}
-          </div>
-
-          ${oddsHTML}
 
           <div class="bookmaker">
-            Bookmaker: ${escapeHTML(fixture.bookmaker || "Stake")}
+
+            <span class="bookmaker-name">
+              Stake
+            </span>
+
             ${
-              fixture.suspended
-                ? " • Suspended"
-                : ""
+              bookmaker.suspended
+                ? `
+                  <span class="suspended">
+                    Markets suspended
+                  </span>
+                `
+                : bookmaker.active
+                  ? `
+                    <span>
+                      Active
+                    </span>
+                  `
+                  : `
+                    <span class="suspended">
+                      Currently unavailable
+                    </span>
+                  `
             }
+
           </div>
 
-        </div>
+          ${marketsHtml}
+
+        </article>
       `;
     }
 
     /*
-     * Initial load
+     * Start the application.
      */
-    loadMatches(10);
-
+    loadSports();
   </script>
 
 </body>
-
 </html>
