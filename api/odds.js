@@ -8,17 +8,35 @@ export default async function handler(req, res) {
   }
 
   const sportId = Number(req.query.sportId || 10);
-  const bookmaker = req.query.bookmaker || "stake";
+  const bookmaker = String(req.query.bookmaker || "stake");
 
-  if (!Number.isInteger(sportId)) {
-    return res.status(400).json({
-      error: "Invalid sportId"
-    });
+  const API_BASE = "https://api.oddspapi.io/v4";
+
+  function errorMessage(data) {
+    if (!data) return "Unknown OddsPAPI error";
+
+    if (typeof data === "string") {
+      return data;
+    }
+
+    if (data.message) {
+      return data.message;
+    }
+
+    if (data.error) {
+      if (typeof data.error === "string") {
+        return data.error;
+      }
+
+      if (data.error.message) {
+        return data.error.message;
+      }
+    }
+
+    return JSON.stringify(data);
   }
 
-  const api = "https://api.oddspapi.io/v4";
-
-  async function getJSON(url) {
+  async function request(url) {
     const response = await fetch(url);
 
     let data;
@@ -26,302 +44,278 @@ export default async function handler(req, res) {
     try {
       data = await response.json();
     } catch {
-      throw new Error(`OddsPAPI returned invalid JSON (${response.status})`);
+      throw new Error(
+        `OddsPAPI returned invalid JSON. HTTP ${response.status}`
+      );
     }
 
     if (!response.ok) {
-      const message =
-        data?.message ||
-        data?.error ||
-        `OddsPAPI request failed (${response.status})`;
-
-      throw new Error(message);
+      throw new Error(
+        `OddsPAPI HTTP ${response.status}: ${errorMessage(data)}`
+      );
     }
 
     return data;
   }
 
   try {
-    /*
-     * ---------------------------------------------------------
-     * 1. Get tournaments for this sport
-     * ---------------------------------------------------------
-     */
+
+    // --------------------------------------------------
+    // STEP 1: Get soccer tournaments
+    // --------------------------------------------------
+
     const tournamentsUrl =
-      `${api}/tournaments` +
+      `${API_BASE}/tournaments` +
       `?sportId=${sportId}` +
       `&language=en` +
       `&apiKey=${encodeURIComponent(apiKey)}`;
 
-    const tournaments = await getJSON(tournamentsUrl);
+    const tournaments = await request(tournamentsUrl);
 
     if (!Array.isArray(tournaments)) {
-      throw new Error("Invalid tournaments response from OddsPAPI");
+      throw new Error(
+        "Unexpected tournaments response: " +
+        JSON.stringify(tournaments)
+      );
     }
 
-    /*
-     * Only request tournaments that currently have fixtures.
-     */
-    const activeTournaments = tournaments.filter(t =>
+    // Only tournaments that actually have fixtures.
+    const usableTournaments = tournaments.filter(t =>
       Number(t.futureFixtures || 0) > 0 ||
       Number(t.upcomingFixtures || 0) > 0 ||
       Number(t.liveFixtures || 0) > 0
     );
 
-    /*
-     * Keep the request manageable.
-     */
-    const selectedTournaments = activeTournaments.slice(0, 30);
+    // Keep the request reasonably small.
+    const selected = usableTournaments.slice(0, 20);
 
-    if (!selectedTournaments.length) {
+    if (selected.length === 0) {
       return res.status(200).json({
         sportId,
         bookmaker,
-        tournaments: [],
-        fixtures: []
+        fixtures: [],
+        message: "No tournaments currently have fixtures."
       });
     }
 
-    const tournamentIds = selectedTournaments
+    const tournamentIds = selected
       .map(t => t.tournamentId)
       .filter(Boolean)
       .join(",");
 
-    /*
-     * ---------------------------------------------------------
-     * 2. Get odds
-     * ---------------------------------------------------------
-     *
-     * OddsPAPI documents this endpoint as:
-     *
-     * /v4/odds-by-tournaments
-     *
-     * with comma-separated tournament IDs.
-     */
+    // --------------------------------------------------
+    // STEP 2: Get odds
+    // --------------------------------------------------
+    //
+    // IMPORTANT:
+    // OddsPAPI uses "bookmakers" PLURAL.
+    // --------------------------------------------------
+
     const oddsUrl =
-      `${api}/odds-by-tournaments` +
+      `${API_BASE}/odds-by-tournaments` +
       `?tournamentIds=${encodeURIComponent(tournamentIds)}` +
-      `&bookmaker=${encodeURIComponent(bookmaker)}` +
+      `&bookmakers=${encodeURIComponent(bookmaker)}` +
       `&language=en` +
       `&oddsFormat=decimal` +
+      `&verbosity=3` +
       `&apiKey=${encodeURIComponent(apiKey)}`;
 
-    const oddsResponse = await getJSON(oddsUrl);
+    const oddsData = await request(oddsUrl);
 
-    /*
-     * OddsPAPI normally returns an array, but support
-     * common wrapper formats as well.
-     */
-    const fixtures = Array.isArray(oddsResponse)
-      ? oddsResponse
-      : Array.isArray(oddsResponse?.data)
-        ? oddsResponse.data
-        : Array.isArray(oddsResponse?.fixtures)
-          ? oddsResponse.fixtures
-          : [];
+    let fixtures = [];
 
-    /*
-     * ---------------------------------------------------------
-     * 3. Get participant names
-     * ---------------------------------------------------------
-     */
+    if (Array.isArray(oddsData)) {
+      fixtures = oddsData;
+    } else if (Array.isArray(oddsData?.data)) {
+      fixtures = oddsData.data;
+    } else if (Array.isArray(oddsData?.fixtures)) {
+      fixtures = oddsData.fixtures;
+    } else if (oddsData?.fixtureId) {
+      fixtures = [oddsData];
+    }
+
+    // --------------------------------------------------
+    // STEP 3: Get participant names
+    // --------------------------------------------------
+
     const participantsUrl =
-      `${api}/participants` +
+      `${API_BASE}/participants` +
       `?sportId=${sportId}` +
       `&language=en` +
       `&apiKey=${encodeURIComponent(apiKey)}`;
 
-    const participantsResponse = await getJSON(participantsUrl);
-
     const participants =
-      participantsResponse &&
-      typeof participantsResponse === "object"
-        ? participantsResponse
-        : {};
+      await request(participantsUrl);
 
-    /*
-     * ---------------------------------------------------------
-     * 4. Tournament name lookup
-     * ---------------------------------------------------------
-     */
+    // Participants is an object:
+    // {
+    //   "123": "Team A",
+    //   "456": "Team B"
+    // }
+
+    if (
+      !participants ||
+      typeof participants !== "object" ||
+      Array.isArray(participants)
+    ) {
+      throw new Error(
+        "Unexpected participants response: " +
+        JSON.stringify(participants)
+      );
+    }
+
+    // --------------------------------------------------
+    // STEP 4: Tournament name lookup
+    // --------------------------------------------------
+
     const tournamentMap = {};
 
     for (const tournament of tournaments) {
       tournamentMap[String(tournament.tournamentId)] =
-        tournament.tournamentName || `Tournament ${tournament.tournamentId}`;
+        tournament.tournamentName ||
+        `Tournament ${tournament.tournamentId}`;
     }
 
-    /*
-     * ---------------------------------------------------------
-     * 5. Normalize every fixture
-     * ---------------------------------------------------------
-     */
-    const normalizedFixtures = fixtures.map(fixture => {
+    // --------------------------------------------------
+    // STEP 5: Normalize fixtures
+    // --------------------------------------------------
 
-      const participant1Id = fixture.participant1Id;
-      const participant2Id = fixture.participant2Id;
+    const normalized = fixtures.map(fixture => {
 
-      const participant1Name =
+      const id1 = fixture.participant1Id;
+      const id2 = fixture.participant2Id;
+
+      const team1 =
         fixture.participant1Name ||
-        participants[String(participant1Id)] ||
-        `Team ${participant1Id}`;
+        participants[String(id1)] ||
+        `Team ${id1}`;
 
-      const participant2Name =
+      const team2 =
         fixture.participant2Name ||
-        participants[String(participant2Id)] ||
-        `Team ${participant2Id}`;
+        participants[String(id2)] ||
+        `Team ${id2}`;
 
       const tournamentName =
         fixture.tournamentName ||
         tournamentMap[String(fixture.tournamentId)] ||
         `Tournament ${fixture.tournamentId}`;
 
-      const stake =
+      const bookmakerData =
         fixture.bookmakerOdds?.[bookmaker] ||
         fixture.bookmakerOdds?.stake ||
         null;
 
-      const markets = stake?.markets || {};
+      const markets =
+        bookmakerData?.markets || {};
 
-      /*
-       * Soccer Full Time Result:
-       *
-       * 101 = Home
-       * 102 = Draw
-       * 103 = Away
-       */
-      const fullTimeResult = markets["101"];
+      // Soccer:
+      // 101 = Full Time Result
+      // 101 = Home
+      // 102 = Draw
+      // 103 = Away
 
-      const getPrice = outcomeId => {
-        const player =
-          fullTimeResult?.outcomes?.[String(outcomeId)]
+      const resultMarket =
+        markets["101"];
+
+      function getOutcome(outcomeId) {
+
+        const outcome =
+          resultMarket
+            ?.outcomes?.[String(outcomeId)]
             ?.players?.["0"];
 
-        if (!player) {
+        if (!outcome) {
           return null;
         }
 
         return {
-          price:
-            typeof player.price === "number"
-              ? player.price
-              : null,
-
+          price: outcome.price ?? null,
           priceAmerican:
-            player.priceAmerican ?? null,
-
+            outcome.priceAmerican ?? null,
           priceFractional:
-            player.priceFractional ?? null,
-
+            outcome.priceFractional ?? null,
           active:
-            player.active !== false
+            outcome.active !== false
         };
-      };
-
-      const odds = {
-        home: getPrice(101),
-        draw: getPrice(102),
-        away: getPrice(103)
-      };
-
-      /*
-       * Also expose every market so the frontend can
-       * display other available betting markets later.
-       */
-      const marketSummary = Object.entries(markets).map(
-        ([marketId, market]) => ({
-          marketId,
-          active: market?.marketActive === true,
-          outcomes: market?.outcomes || {}
-        })
-      );
+      }
 
       return {
-        fixtureId: fixture.fixtureId,
 
-        participant1Id,
-        participant2Id,
+        fixtureId:
+          fixture.fixtureId,
 
-        participant1Name,
-        participant2Name,
+        participant1Id:
+          id1,
 
-        sportId: fixture.sportId ?? sportId,
+        participant2Id:
+          id2,
 
-        tournamentId: fixture.tournamentId,
-        tournamentName,
+        participant1Name:
+          team1,
 
-        seasonId: fixture.seasonId ?? null,
-        statusId: fixture.statusId ?? null,
+        participant2Name:
+          team2,
 
-        startTime: fixture.startTime ?? null,
+        sportId:
+          fixture.sportId ?? sportId,
+
+        tournamentId:
+          fixture.tournamentId,
+
+        tournamentName:
+          tournamentName,
+
+        seasonId:
+          fixture.seasonId ?? null,
+
+        statusId:
+          fixture.statusId ?? null,
+
+        startTime:
+          fixture.startTime ?? null,
 
         hasOdds:
-          fixture.hasOdds === true ||
-          Boolean(stake),
+          fixture.hasOdds === true,
 
-        bookmaker,
+        bookmaker:
+          bookmaker,
 
         bookmakerActive:
-          stake?.bookmakerIsActive === true,
+          bookmakerData?.bookmakerIsActive === true,
 
         suspended:
-          stake?.suspended === true,
+          bookmakerData?.suspended === true,
 
         fixturePath:
-          stake?.fixturePath || null,
+          bookmakerData?.fixturePath || null,
 
-        odds,
+        odds: {
+          home: getOutcome(101),
+          draw: getOutcome(102),
+          away: getOutcome(103)
+        },
 
-        marketSummary,
+        marketCount:
+          Object.keys(markets).length
 
-        rawMarkets: markets
       };
-    });
-
-    /*
-     * Put fixtures with odds first.
-     */
-    normalizedFixtures.sort((a, b) => {
-      const aHasOdds =
-        a.odds.home ||
-        a.odds.draw ||
-        a.odds.away;
-
-      const bHasOdds =
-        b.odds.home ||
-        b.odds.draw ||
-        b.odds.away;
-
-      if (aHasOdds && !bHasOdds) return -1;
-      if (!aHasOdds && bHasOdds) return 1;
-
-      return (
-        new Date(a.startTime || 0) -
-        new Date(b.startTime || 0)
-      );
     });
 
     return res.status(200).json({
+      success: true,
       sportId,
       bookmaker,
-
-      tournaments: selectedTournaments.map(t => ({
-        tournamentId: t.tournamentId,
-        tournamentName: t.tournamentName,
-        categoryName: t.categoryName,
-        futureFixtures: t.futureFixtures,
-        upcomingFixtures: t.upcomingFixtures,
-        liveFixtures: t.liveFixtures
-      })),
-
-      fixtures: normalizedFixtures
+      fixtureCount: normalized.length,
+      fixtures: normalized
     });
 
   } catch (error) {
-    console.error("OddsPAPI error:", error);
+
+    console.error("ODDSPAPI ERROR:", error);
 
     return res.status(500).json({
-      error: error.message || "Failed to fetch odds"
+      success: false,
+      error: error.message || "Failed to fetch OddsPAPI data"
     });
   }
 }
