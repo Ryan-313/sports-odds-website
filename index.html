@@ -318,7 +318,7 @@
 
         const response =
           await fetch(
-            `/api/odds?sportId=${encodeURIComponent(sportId)}&bookmaker=stake`
+            `/api/odds?sportId=${encodeURIComponent(sportId)}&bookmakers=stake`
           );
 
         const data =
@@ -332,9 +332,10 @@
         if (!response.ok) {
 
           throw new Error(
-            data.error ||
-            "API request failed"
-          );
+  typeof data.error === "string"
+    ? data.error
+    : JSON.stringify(data.error || data)
+);
         }
 
         const fixtures =
