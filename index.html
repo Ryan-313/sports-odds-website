@@ -114,15 +114,19 @@ async function loadMatches() {
 
     console.log("OddsPapi response:", data);
 
-   if (!response.ok) {
-  throw new Error(
-    typeof data.error === "object"
-      ? JSON.stringify(data.error)
-      : data.error || "API request failed"
-  );
-}
+    if (!response.ok) {
+      throw new Error(
+        typeof data.error === "string"
+          ? data.error
+          : JSON.stringify(data.error || data)
+      );
+    }
 
-    if (!Array.isArray(data) || data.length === 0) {
+    const fixtures = Array.isArray(data)
+      ? data
+      : data.fixtures || data.data || [];
+
+    if (fixtures.length === 0) {
       container.innerHTML = `
         <div class="match">
           <div class="teams">No matches found</div>
@@ -131,54 +135,79 @@ async function loadMatches() {
       return;
     }
 
-    container.innerHTML = data.map(fixture => {
+    container.innerHTML = fixtures.map(fixture => {
 
-      const participant1Id = String(fixture.participant1Id);
-      const participant2Id = String(fixture.participant2Id);
+      const team1 =
+        fixture.participant1Name ||
+        `Team ${fixture.participant1Id}`;
 
-      /*
-        These are the participant names we already obtained
-        from the Participants API.
-      */
-      const participants = {
-        "1154015": "Cardiff Draconians",
-        "37100": "Pontardawe Town FC"
-      };
+      const team2 =
+        fixture.participant2Name ||
+        `Team ${fixture.participant2Id}`;
 
-      const team1 = participants[participant1Id] || `Team ${participant1Id}`;
-      const team2 = participants[participant2Id] || `Team ${participant2Id}`;
+      const tournament =
+        fixture.tournamentName ||
+        `Tournament ID: ${fixture.tournamentId}`;
 
       let oddsHTML = "";
 
+      /*
+       * OddsPAPI returns bookmaker odds under:
+       * bookmakerOdds -> stake -> markets
+       */
       const stake = fixture.bookmakerOdds?.stake;
 
       if (stake?.markets) {
 
-        /*
-          Market 101 is the 1X2 market in the response
-          we received.
-        */
-        const market = stake.markets["101"];
+        const markets = stake.markets;
 
-        if (market?.outcomes) {
+        // Market 101 = 1X2 / Match Result
+        const matchResult = markets["101"];
 
-          for (const [outcomeId, outcome] of Object.entries(market.outcomes)) {
+        if (matchResult?.outcomes) {
 
-            const player = outcome.players?.["0"];
+          const outcomes = matchResult.outcomes;
 
-            if (player) {
-              oddsHTML += `
-                <div class="odd">
-                  ${player.price}
-                </div>
-              `;
-            }
-          }
+          const home = outcomes["101"]?.players?.["0"];
+          const draw = outcomes["102"]?.players?.["0"];
+          const away = outcomes["103"]?.players?.["0"];
+
+          oddsHTML = `
+            <div class="odds">
+              ${
+                home
+                  ? `<div class="odd">
+                       ${team1}: <strong>${home.price}</strong>
+                     </div>`
+                  : ""
+              }
+
+              ${
+                draw
+                  ? `<div class="odd">
+                       Draw: <strong>${draw.price}</strong>
+                     </div>`
+                  : ""
+              }
+
+              ${
+                away
+                  ? `<div class="odd">
+                       ${team2}: <strong>${away.price}</strong>
+                     </div>`
+                  : ""
+              }
+            </div>
+          `;
         }
       }
 
       if (!oddsHTML) {
-        oddsHTML = `<div class="odd">Odds unavailable</div>`;
+        oddsHTML = `
+          <div class="odds">
+            <div class="odd">Odds unavailable</div>
+          </div>
+        `;
       }
 
       return `
@@ -189,12 +218,10 @@ async function loadMatches() {
           </div>
 
           <div class="tournament">
-            Tournament ID: ${fixture.tournamentId}
+            ${tournament}
           </div>
 
-          <div class="odds">
-            ${oddsHTML}
-          </div>
+          ${oddsHTML}
 
         </div>
       `;
@@ -202,13 +229,17 @@ async function loadMatches() {
 
   } catch (error) {
 
-    console.error(error);
+    console.error("Odds error:", error);
 
     container.innerHTML = `
       <div class="match">
         <div class="teams">Unable to load odds</div>
+
         <div class="tournament">
-          ${error.message}
+          ${
+            error.message ||
+            "Unknown error"
+          }
         </div>
       </div>
     `;
