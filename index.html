@@ -118,16 +118,86 @@ async function loadMatches() {
       throw new Error(data.error || "API request failed");
     }
 
-    container.innerHTML = `
-      <div class="match">
-        <div class="teams">API connection successful</div>
-        <div class="tournament">
-          Odds data received from OddsPapi.
+    if (!Array.isArray(data) || data.length === 0) {
+      container.innerHTML = `
+        <div class="match">
+          <div class="teams">No matches found</div>
         </div>
-      </div>
-    `;
+      `;
+      return;
+    }
+
+    container.innerHTML = data.map(fixture => {
+
+      const participant1Id = String(fixture.participant1Id);
+      const participant2Id = String(fixture.participant2Id);
+
+      /*
+        These are the participant names we already obtained
+        from the Participants API.
+      */
+      const participants = {
+        "1154015": "Cardiff Draconians",
+        "37100": "Pontardawe Town FC"
+      };
+
+      const team1 = participants[participant1Id] || `Team ${participant1Id}`;
+      const team2 = participants[participant2Id] || `Team ${participant2Id}`;
+
+      let oddsHTML = "";
+
+      const stake = fixture.bookmakerOdds?.stake;
+
+      if (stake?.markets) {
+
+        /*
+          Market 101 is the 1X2 market in the response
+          we received.
+        */
+        const market = stake.markets["101"];
+
+        if (market?.outcomes) {
+
+          for (const [outcomeId, outcome] of Object.entries(market.outcomes)) {
+
+            const player = outcome.players?.["0"];
+
+            if (player) {
+              oddsHTML += `
+                <div class="odd">
+                  ${player.price}
+                </div>
+              `;
+            }
+          }
+        }
+      }
+
+      if (!oddsHTML) {
+        oddsHTML = `<div class="odd">Odds unavailable</div>`;
+      }
+
+      return `
+        <div class="match">
+
+          <div class="teams">
+            ${team1} vs ${team2}
+          </div>
+
+          <div class="tournament">
+            Tournament ID: ${fixture.tournamentId}
+          </div>
+
+          <div class="odds">
+            ${oddsHTML}
+          </div>
+
+        </div>
+      `;
+    }).join("");
 
   } catch (error) {
+
     console.error(error);
 
     container.innerHTML = `
