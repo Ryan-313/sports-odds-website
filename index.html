@@ -42,31 +42,107 @@
 
     #matches {
       padding: 20px;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .match {
+      background: white;
+      padding: 20px;
+      margin-bottom: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .teams {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .tournament {
+      color: #666;
+      margin-bottom: 15px;
+    }
+
+    .odds {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .odd {
+      background: #eee;
+      padding: 10px 15px;
+      border-radius: 6px;
+    }
+
+    .loading {
       text-align: center;
+      padding: 30px;
     }
   </style>
 </head>
 
 <body>
 
-  <header>
-    <h1>Sports Odds</h1>
-  </header>
+<header>
+  <h1>Sports Odds</h1>
+</header>
 
-  <div class="sports">
-    <button class="sport">⚽ Soccer</button>
-    <button class="sport">🏈 American Football</button>
-    <button class="sport">⚾ Baseball</button>
-    <button class="sport">🎾 Tennis</button>
-    <button class="sport">🎮 CS2</button>
-    <button class="sport">🏀 Basketball</button>
-    <button class="sport">🏓 Table Tennis</button>
-  </div>
+<div class="sports">
+  <button class="sport">⚽ Soccer</button>
+  <button class="sport">🏈 American Football</button>
+  <button class="sport">⚾ Baseball</button>
+  <button class="sport">🎾 Tennis</button>
+  <button class="sport">🎮 CS2</button>
+  <button class="sport">🏀 Basketball</button>
+  <button class="sport">🏓 Table Tennis</button>
+</div>
 
-  <div id="matches">
-    <h2>Select a sport</h2>
-    <p>Your matches and odds will appear here.</p>
-  </div>
+<div id="matches">
+  <div class="loading">Loading matches...</div>
+</div>
+
+<script>
+async function loadMatches() {
+  const container = document.getElementById("matches");
+
+  try {
+    const response = await fetch("/api/odds");
+    const data = await response.json();
+
+    console.log("OddsPapi response:", data);
+
+    if (!response.ok) {
+      throw new Error(data.error || "API request failed");
+    }
+
+    container.innerHTML = `
+      <div class="match">
+        <div class="teams">API connection successful</div>
+        <div class="tournament">
+          Odds data received from OddsPapi.
+        </div>
+      </div>
+    `;
+
+  } catch (error) {
+    console.error(error);
+
+    container.innerHTML = `
+      <div class="match">
+        <div class="teams">Unable to load odds</div>
+        <div class="tournament">
+          ${error.message}
+        </div>
+      </div>
+    `;
+  }
+}
+
+loadMatches();
+</script>
 
 </body>
 </html>
