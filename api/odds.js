@@ -7,315 +7,565 @@ export default async function handler(req, res) {
     });
   }
 
-  const sportId = Number(req.query.sportId || 10);
-  const bookmaker = String(req.query.bookmaker || "stake");
+  const {
+    sportId = "10",
+    tournamentId = ""
+  } = req.query;
 
-  const API_BASE = "https://api.oddspapi.io/v4";
+  const BASE_URL = "https://api.oddspapi.io/v4";
 
-  function errorMessage(data) {
-    if (!data) return "Unknown OddsPAPI error";
-
-    if (typeof data === "string") {
-      return data;
-    }
-
-    if (data.message) {
-      return data.message;
-    }
-
-    if (data.error) {
-      if (typeof data.error === "string") {
-        return data.error;
-      }
-
-      if (data.error.message) {
-        return data.error.message;
-      }
-    }
-
-    return JSON.stringify(data);
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async function request(url) {
+  async function oddsPapi(path, params = {}) {
+    const search = new URLSearchParams({
+      ...params,
+      apiKey
+    });
+
+    const url = `${BASE_URL}${path}?${search.toString()}`;
+
     const response = await fetch(url);
+    const text = await response.text();
 
     let data;
 
     try {
-      data = await response.json();
+      data = JSON.parse(text);
     } catch {
-      throw new Error(
-        `OddsPAPI returned invalid JSON. HTTP ${response.status}`
-      );
+      data = {
+        message: text || "Invalid response from OddsPAPI"
+      };
     }
 
     if (!response.ok) {
-      throw new Error(
-        `OddsPAPI HTTP ${response.status}: ${errorMessage(data)}`
-      );
+      const message =
+        data?.message ||
+        data?.error ||
+        data?.details ||
+        `OddsPAPI HTTP ${response.status}`;
+
+      const error = new Error(message);
+      error.status = response.status;
+      error.data = data;
+      throw error;
     }
 
     return data;
   }
 
-  try {
+  /*
+   * Small in-memory cache.
+   *
+   * This is important because /sports, /markets and /tournaments
+   * are billable API calls.
+   */
 
-    // --------------------------------------------------
-    // STEP 1: Get soccer tournaments
-    // --------------------------------------------------
+  if (!globalThis.__sportsCache) {
+    globalThis.__sportsCache = {
+      data: null,
+      expires: 0
+    };
+  }
 
-    const tournamentsUrl =
-      `${API_BASE}/tournaments` +
-      `?sportId=${sportId}` +
-      `&language=en` +
-      `&apiKey=${encodeURIComponent(apiKey)}`;
+  if (!globalThis.__tournamentsCache) {
+    globalThis.__tournamentsCache = new Map();
+  }
 
-    const tournaments = await request(tournamentsUrl);
+  if (!globalThis.__marketsCache) {
+    globalThis.__marketsCache = {
+      data: null,
+      expires: 0
+    };
+  }
 
-    if (!Array.isArray(tournaments)) {
-      throw new Error(
-        "Unexpected tournaments response: " +
-        JSON.stringify(tournaments)
-      );
+  if (!globalThis.__oddsCache) {
+    globalThis.__oddsCache = new Map();
+  }
+
+  async function getSports() {
+    const cache = globalThis.__sportsCache;
+
+    if (cache.data && Date.now() < cache.expires) {
+      return cache.data;
     }
 
-    // Only tournaments that actually have fixtures.
-    const usableTournaments = tournaments.filter(t =>
-      Number(t.futureFixtures || 0) > 0 ||
-      Number(t.upcomingFixtures || 0) > 0 ||
-      Number(t.liveFixtures || 0) > 0
+    const data = await oddsPapi("/sports", {
+      language: "en"
+    });
+
+    cache.data = Array.isArray(data) ? data : [];
+    cache.expires = Date.now() + 24 * 60 * 60 * 1000;
+
+    return cache.data;
+  }
+
+  async function getMarkets() {
+    const cache = globalThis.__marketsCache;
+
+    if (cache.data && Date.now() < cache.expires) {
+      return cache.data;
+    }
+
+    const data = await oddsPapi("/markets", {
+      language: "en"
+    });
+
+    cache.data = Array.isArray(data) ? data : [];
+    cache.expires = Date.now() + 24 * 60 * 60 * 1000;
+
+    return cache.data;
+  }
+
+  async function getTournaments(id) {
+    const cached = globalThis.__tournamentsCache.get(String(id));
+
+    if (cached && Date.now() < cached.expires) {
+      return cached.data;
+    }
+
+    const data = await oddsPapi("/tournaments", {
+      sportId: id,
+      language: "en"
+    });
+
+    const tournaments = Array.isArray(data) ? data : [];
+
+    globalThis.__tournamentsCache.set(String(id), {
+      data: tournaments,
+      expires: Date.now() + 10 * 60 * 1000
+    });
+
+    return tournaments;
+  }
+
+  function getTournamentScore(tournament) {
+    const live = Number(tournament.liveFixtures || 0);
+    const upcoming = Number(tournament.upcomingFixtures || 0);
+    const future = Number(tournament.futureFixtures || 0);
+
+    /*
+     * Prefer tournaments that actually have fixtures happening
+     * soon. Live > upcoming > future.
+     */
+    return (
+      live * 1000000 +
+      upcoming * 10000 +
+      future
+    );
+  }
+
+  function normalizeOddsResponse(data) {
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    if (data && Array.isArray(data.fixtures)) {
+      return data.fixtures;
+    }
+
+    if (data && data.fixtureId) {
+      return [data];
+    }
+
+    return [];
+  }
+
+  function findStake(fixture) {
+    const bookmakerOdds = fixture?.bookmakerOdds || {};
+
+    /*
+     * OddsPAPI normally returns the bookmaker under its slug.
+     */
+    return (
+      bookmakerOdds.stake ||
+      bookmakerOdds["Stake"] ||
+      bookmakerOdds.STAKE ||
+      null
+    );
+  }
+
+  function extractOdds(fixture, marketsCatalog) {
+    const stake = findStake(fixture);
+
+    if (!stake) {
+      return [];
+    }
+
+    const markets = stake.markets || {};
+    const result = [];
+
+    for (const [marketId, market] of Object.entries(markets)) {
+      if (!market || market.marketActive === false) {
+        continue;
+      }
+
+      const catalog = marketsCatalog.find(
+        m => String(m.marketId) === String(marketId)
+      );
+
+      const marketName =
+        catalog?.marketName ||
+        catalog?.marketNameShort ||
+        `Market ${marketId}`;
+
+      const catalogOutcomes = new Map();
+
+      if (Array.isArray(catalog?.outcomes)) {
+        for (const outcome of catalog.outcomes) {
+          catalogOutcomes.set(
+            String(outcome.outcomeId),
+            outcome.outcomeName
+          );
+        }
+      }
+
+      const outcomes = [];
+
+      for (const [outcomeId, outcome] of Object.entries(
+        market.outcomes || {}
+      )) {
+        const player =
+          outcome?.players?.["0"] ||
+          Object.values(outcome?.players || {})[0];
+
+        if (!player) {
+          continue;
+        }
+
+        /*
+         * Do not show inactive bookmaker prices.
+         */
+        if (player.active === false) {
+          continue;
+        }
+
+        const price = Number(player.price);
+
+        if (!Number.isFinite(price)) {
+          continue;
+        }
+
+        const outcomeName =
+          catalogOutcomes.get(String(outcomeId)) ||
+          player.playerName ||
+          `Outcome ${outcomeId}`;
+
+        outcomes.push({
+          outcomeId,
+          name: outcomeName,
+          price,
+          american: player.priceAmerican ?? null,
+          fractional: player.priceFractional ?? null
+        });
+      }
+
+      if (outcomes.length > 0) {
+        result.push({
+          marketId,
+          marketName,
+          outcomes
+        });
+      }
+    }
+
+    /*
+     * Put the most useful markets first.
+     */
+    result.sort((a, b) => {
+      const aName = a.marketName.toLowerCase();
+      const bName = b.marketName.toLowerCase();
+
+      const priority = name => {
+        if (
+          name.includes("full time") ||
+          name.includes("regular time") ||
+          name.includes("winner") ||
+          name.includes("moneyline") ||
+          name.includes("match result")
+        ) {
+          return 0;
+        }
+
+        if (
+          name.includes("both") ||
+          name.includes("total") ||
+          name.includes("over") ||
+          name.includes("under")
+        ) {
+          return 1;
+        }
+
+        if (
+          name.includes("handicap") ||
+          name.includes("spread")
+        ) {
+          return 2;
+        }
+
+        return 3;
+      };
+
+      return priority(aName) - priority(bName);
+    });
+
+    return result;
+  }
+
+  try {
+    /*
+     * Validate sport.
+     */
+    const sports = await getSports();
+
+    const selectedSport = sports.find(
+      sport => String(sport.sportId) === String(sportId)
     );
 
-    // Keep the request reasonably small.
-    const selected = usableTournaments.slice(0, 20);
-
-    if (selected.length === 0) {
-      return res.status(200).json({
-        sportId,
-        bookmaker,
-        fixtures: [],
-        message: "No tournaments currently have fixtures."
+    if (!selectedSport) {
+      return res.status(400).json({
+        error: `Invalid sportId: ${sportId}`,
+        availableSports: sports
       });
     }
 
-    const tournamentIds = selected
-      .map(t => t.tournamentId)
-      .filter(Boolean)
-      .join(",");
+    /*
+     * Get markets once and cache them.
+     */
+    const allMarkets = await getMarkets();
 
-    // --------------------------------------------------
-    // STEP 2: Get odds
-    // --------------------------------------------------
-    //
-    // IMPORTANT:
-    // OddsPAPI uses "bookmakers" PLURAL.
-    // --------------------------------------------------
+    const marketsCatalog = allMarkets.filter(
+      market =>
+        String(market.sportId) === String(sportId)
+    );
 
-    const oddsUrl =
-      `${API_BASE}/odds-by-tournaments` +
-      `?tournamentIds=${encodeURIComponent(tournamentIds)}` +
-      `&bookmakers=${encodeURIComponent(bookmaker)}` +
-      `&language=en` +
-      `&oddsFormat=decimal` +
-      `&verbosity=3` +
-      `&apiKey=${encodeURIComponent(apiKey)}`;
+    /*
+     * If the frontend supplied a tournament ID,
+     * use exactly ONE tournament.
+     *
+     * This is the important fix for:
+     * "Too many tournament IDs specified."
+     */
+    let selectedTournament = null;
 
-    const oddsData = await request(oddsUrl);
+    if (tournamentId) {
+      const tournaments = await getTournaments(sportId);
 
-    let fixtures = [];
+      selectedTournament = tournaments.find(
+        tournament =>
+          String(tournament.tournamentId) ===
+          String(tournamentId)
+      );
 
-    if (Array.isArray(oddsData)) {
-      fixtures = oddsData;
-    } else if (Array.isArray(oddsData?.data)) {
-      fixtures = oddsData.data;
-    } else if (Array.isArray(oddsData?.fixtures)) {
-      fixtures = oddsData.fixtures;
-    } else if (oddsData?.fixtureId) {
-      fixtures = [oddsData];
+      if (!selectedTournament) {
+        return res.status(404).json({
+          error: `Tournament ${tournamentId} was not found for ${selectedSport.sportName}.`
+        });
+      }
+    } else {
+      /*
+       * Automatically find the most relevant tournament.
+       */
+      const tournaments = await getTournaments(sportId);
+
+      const usable = tournaments
+        .filter(tournament => {
+          const live = Number(tournament.liveFixtures || 0);
+          const upcoming = Number(tournament.upcomingFixtures || 0);
+          const future = Number(tournament.futureFixtures || 0);
+
+          return live > 0 || upcoming > 0 || future > 0;
+        })
+        .sort(
+          (a, b) =>
+            getTournamentScore(b) -
+            getTournamentScore(a)
+        );
+
+      selectedTournament = usable[0];
+
+      if (!selectedTournament) {
+        return res.status(200).json({
+          sport: selectedSport,
+          tournament: null,
+          fixtures: [],
+          message: "No tournaments with fixtures were found."
+        });
+      }
     }
 
-    // --------------------------------------------------
-    // STEP 3: Get participant names
-    // --------------------------------------------------
+    const selectedTournamentId =
+      selectedTournament.tournamentId;
 
-    const participantsUrl =
-      `${API_BASE}/participants` +
-      `?sportId=${sportId}` +
-      `&language=en` +
-      `&apiKey=${encodeURIComponent(apiKey)}`;
+    /*
+     * Cache odds for 20 seconds.
+     */
+    const cacheKey =
+      `${sportId}:${selectedTournamentId}:stake`;
 
-    const participants =
-      await request(participantsUrl);
+    const cachedOdds =
+      globalThis.__oddsCache.get(cacheKey);
 
-    // Participants is an object:
-    // {
-    //   "123": "Team A",
-    //   "456": "Team B"
-    // }
+    let rawOdds;
 
     if (
-      !participants ||
-      typeof participants !== "object" ||
-      Array.isArray(participants)
+      cachedOdds &&
+      Date.now() < cachedOdds.expires
     ) {
-      throw new Error(
-        "Unexpected participants response: " +
-        JSON.stringify(participants)
-      );
-    }
-
-    // --------------------------------------------------
-    // STEP 4: Tournament name lookup
-    // --------------------------------------------------
-
-    const tournamentMap = {};
-
-    for (const tournament of tournaments) {
-      tournamentMap[String(tournament.tournamentId)] =
-        tournament.tournamentName ||
-        `Tournament ${tournament.tournamentId}`;
-    }
-
-    // --------------------------------------------------
-    // STEP 5: Normalize fixtures
-    // --------------------------------------------------
-
-    const normalized = fixtures.map(fixture => {
-
-      const id1 = fixture.participant1Id;
-      const id2 = fixture.participant2Id;
-
-      const team1 =
-        fixture.participant1Name ||
-        participants[String(id1)] ||
-        `Team ${id1}`;
-
-      const team2 =
-        fixture.participant2Name ||
-        participants[String(id2)] ||
-        `Team ${id2}`;
-
-      const tournamentName =
-        fixture.tournamentName ||
-        tournamentMap[String(fixture.tournamentId)] ||
-        `Tournament ${fixture.tournamentId}`;
-
-      const bookmakerData =
-        fixture.bookmakerOdds?.[bookmaker] ||
-        fixture.bookmakerOdds?.stake ||
-        null;
-
-      const markets =
-        bookmakerData?.markets || {};
-
-      // Soccer:
-      // 101 = Full Time Result
-      // 101 = Home
-      // 102 = Draw
-      // 103 = Away
-
-      const resultMarket =
-        markets["101"];
-
-      function getOutcome(outcomeId) {
-
-        const outcome =
-          resultMarket
-            ?.outcomes?.[String(outcomeId)]
-            ?.players?.["0"];
-
-        if (!outcome) {
-          return null;
+      rawOdds = cachedOdds.data;
+    } else {
+      /*
+       * IMPORTANT:
+       * Only ONE tournament ID is sent here.
+       */
+      rawOdds = await oddsPapi(
+        "/odds-by-tournaments",
+        {
+          bookmakers: "stake",
+          tournamentIds: String(selectedTournamentId),
+          language: "en",
+          verbosity: "3",
+          oddsFormat: "decimal"
         }
+      );
+
+      globalThis.__oddsCache.set(cacheKey, {
+        data: rawOdds,
+        expires: Date.now() + 20 * 1000
+      });
+
+      /*
+       * Give the provider a little breathing room.
+       */
+      await sleep(500);
+    }
+
+    const fixtures = normalizeOddsResponse(rawOdds);
+
+    const formattedFixtures = fixtures
+      .filter(fixture => {
+        /*
+         * We only want fixtures that actually have Stake data.
+         */
+        const stake = findStake(fixture);
+
+        return (
+          fixture?.hasOdds === true &&
+          stake !== null
+        );
+      })
+      .map(fixture => {
+        const stake = findStake(fixture);
 
         return {
-          price: outcome.price ?? null,
-          priceAmerican:
-            outcome.priceAmerican ?? null,
-          priceFractional:
-            outcome.priceFractional ?? null,
-          active:
-            outcome.active !== false
+          fixtureId: fixture.fixtureId,
+
+          home:
+            fixture.participant1Name ||
+            `Team ${fixture.participant1Id}`,
+
+          away:
+            fixture.participant2Name ||
+            `Team ${fixture.participant2Id}`,
+
+          homeId: fixture.participant1Id,
+          awayId: fixture.participant2Id,
+
+          sportId: fixture.sportId,
+          sportName:
+            fixture.sportName ||
+            selectedSport.sportName,
+
+          tournamentId: fixture.tournamentId,
+
+          tournamentName:
+            fixture.tournamentName ||
+            selectedTournament.tournamentName,
+
+          categoryName:
+            fixture.categoryName || "",
+
+          startTime: fixture.startTime,
+
+          statusName:
+            fixture.statusName || "Pre-Game",
+
+          bookmaker: {
+            name: "Stake",
+            active:
+              stake.bookmakerIsActive !== false,
+            suspended:
+              stake.suspended === true,
+            url:
+              stake.fixturePath || null
+          },
+
+          markets: extractOdds(
+            fixture,
+            marketsCatalog
+          )
         };
-      }
+      });
 
-      return {
-
-        fixtureId:
-          fixture.fixtureId,
-
-        participant1Id:
-          id1,
-
-        participant2Id:
-          id2,
-
-        participant1Name:
-          team1,
-
-        participant2Name:
-          team2,
-
-        sportId:
-          fixture.sportId ?? sportId,
-
-        tournamentId:
-          fixture.tournamentId,
-
-        tournamentName:
-          tournamentName,
-
-        seasonId:
-          fixture.seasonId ?? null,
-
-        statusId:
-          fixture.statusId ?? null,
-
-        startTime:
-          fixture.startTime ?? null,
-
-        hasOdds:
-          fixture.hasOdds === true,
-
-        bookmaker:
-          bookmaker,
-
-        bookmakerActive:
-          bookmakerData?.bookmakerIsActive === true,
-
-        suspended:
-          bookmakerData?.suspended === true,
-
-        fixturePath:
-          bookmakerData?.fixturePath || null,
-
-        odds: {
-          home: getOutcome(101),
-          draw: getOutcome(102),
-          away: getOutcome(103)
-        },
-
-        marketCount:
-          Object.keys(markets).length
-
-      };
-    });
+    /*
+     * Sort by start time.
+     */
+    formattedFixtures.sort(
+      (a, b) =>
+        new Date(a.startTime || 0) -
+        new Date(b.startTime || 0)
+    );
 
     return res.status(200).json({
       success: true,
-      sportId,
-      bookmaker,
-      fixtureCount: normalized.length,
-      fixtures: normalized
+
+      sport: {
+        id: selectedSport.sportId,
+        slug: selectedSport.slug,
+        name: selectedSport.sportName
+      },
+
+      tournament: {
+        id: selectedTournament.tournamentId,
+        name: selectedTournament.tournamentName,
+        category:
+          selectedTournament.categoryName || "",
+        liveFixtures:
+          selectedTournament.liveFixtures || 0,
+        upcomingFixtures:
+          selectedTournament.upcomingFixtures || 0,
+        futureFixtures:
+          selectedTournament.futureFixtures || 0
+      },
+
+      bookmaker: "stake",
+
+      count: formattedFixtures.length,
+
+      fixtures: formattedFixtures
     });
-
   } catch (error) {
+    console.error("OddsPAPI error:", error);
 
-    console.error("ODDSPAPI ERROR:", error);
+    const status =
+      Number.isInteger(error.status)
+        ? error.status
+        : 500;
 
-    return res.status(500).json({
+    return res.status(status).json({
       success: false,
-      error: error.message || "Failed to fetch OddsPAPI data"
+      error:
+        error?.message ||
+        "Failed to fetch odds",
+
+      details:
+        error?.data?.details ||
+        null,
+
+      code:
+        error?.data?.code ||
+        null
     });
   }
 }
