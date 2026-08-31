@@ -114,9 +114,13 @@ async function loadMatches() {
 
     console.log("OddsPapi response:", data);
 
-    if (!response.ok) {
-      throw new Error(data.error || "API request failed");
-    }
+   if (!response.ok) {
+  throw new Error(
+    typeof data.error === "object"
+      ? JSON.stringify(data.error)
+      : data.error || "API request failed"
+  );
+}
 
     if (!Array.isArray(data) || data.length === 0) {
       container.innerHTML = `
