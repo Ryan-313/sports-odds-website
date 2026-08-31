@@ -4,12 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sports Odds</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f5f5;
+    }
+
+    header {
+      background: #111;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .sports {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 20px;
+      justify-content: center;
+    }
+
+    .sport {
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    .sport:hover {
+      background: #ddd;
+    }
+
+    #matches {
+      padding: 20px;
+      text-align: center;
+    }
+  </style>
 </head>
+
 <body>
 
-  <h1>Sports Odds</h1>
+  <header>
+    <h1>Sports Odds</h1>
+  </header>
 
-  <p>Soccer · American Football · Baseball · Tennis · CS2 · Basketball · Table Tennis</p>
+  <div class="sports">
+    <button class="sport">⚽ Soccer</button>
+    <button class="sport">🏈 American Football</button>
+    <button class="sport">⚾ Baseball</button>
+    <button class="sport">🎾 Tennis</button>
+    <button class="sport">🎮 CS2</button>
+    <button class="sport">🏀 Basketball</button>
+    <button class="sport">🏓 Table Tennis</button>
+  </div>
+
+  <div id="matches">
+    <h2>Select a sport</h2>
+    <p>Your matches and odds will appear here.</p>
+  </div>
 
 </body>
 </html>
